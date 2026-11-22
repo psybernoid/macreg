@@ -1,0 +1,18 @@
+services:
+  macreg:
+    build: .
+    # Or use the image built by GitHub Actions instead of building locally:
+    # image: ghcr.io/YOUR-GITHUB-USER/macreg:latest
+    container_name: macreg
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Prefix for generated MACs. First octet must be locally administered + unicast
+      # (02, 06, 0a or 0e). Avoid 02:42, which Docker uses for its own generated MACs.
+      MAC_PREFIX: "02:a7"
+    volumes:
+      - macreg-data:/data
+
+volumes:
+  macreg-data:

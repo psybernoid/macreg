@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>macreg</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2230; --muted: #667085; --line: #dfe3ea;
+    --accent: #2f6fed; --accent-text: #fff; --danger: #c0352b; --ok: #1f8a4c; --code: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d; --panel: #1c2028; --text: #e6e9ef; --muted: #8e97a8; --line: #2e3440;
+      --accent: #5b8cf5; --accent-text: #0e1218; --danger: #ef6b60; --ok: #4cc27f; --code: #252a35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 24px 6px; }
+  h1 { margin: 0; font-size: 20px; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  main { padding: 12px 24px 40px; display: grid; gap: 18px; max-width: 1280px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; }
+  form.row { display: grid; gap: 10px; grid-template-columns: 1fr 1.1fr 1.1fr 1.4fr 1fr auto; align-items: end; }
+  form.row.network { grid-template-columns: 1fr 1.2fr 1.4fr auto; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+         border-radius: 7px; padding: 7px 9px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:disabled { opacity: .55; cursor: not-allowed; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+           border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.danger { color: var(--danger); }
+  button.small { padding: 3px 8px; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+  td.actions { white-space: nowrap; text-align: right; }
+  td.actions button { margin-left: 4px; }
+  .tag { display: inline-block; background: var(--code); border-radius: 5px; padding: 1px 6px; font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .toolbar input { max-width: 320px; }
+  .toolbar .count { margin-left: auto; color: var(--muted); }
+  #toast { position: fixed; right: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--line);
+           border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; max-width: 460px;
+           box-shadow: 0 6px 24px rgba(0,0,0,.18); display: none; z-index: 10; }
+  #toast.err { border-left-color: var(--danger); }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+           padding: 18px; width: min(560px, 94vw); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h3 { margin: 0 0 12px; font-size: 16px; }
+  dialog .fields { display: grid; gap: 10px; }
+  dialog .buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  pre { background: var(--code); border-radius: 8px; padding: 10px 12px; overflow: auto; margin: 6px 0 0; font-size: 12.5px; }
+  .empty { padding: 18px; text-align: center; color: var(--muted); }
+  @media (max-width: 900px) {
+    form.row, form.row.network { grid-template-columns: 1fr; }
+    table, thead, tbody, tr, th, td { display: block; }
+    thead { display: none; }
+    tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+    td { border: 0; padding: 2px 4px; }
+    td.actions { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>macreg</h1>
+  <p>Stable MAC addresses for container IPs. A MAC is generated once and never changes; delete an entry to release it.</p>
+</header>
+<main>
+  <section>
+    <h2>Add entry</h2>
+    <p class="hint">Give an IPv4 address, an IPv6 address, or both. They share one MAC.</p>
+    <form class="row" id="add-entry">
+      <label>Container / name<input name="name" required placeholder="jellyfin" maxlength="200"></label>
+      <label>VLAN<select name="network_id" id="add-network" required></select></label>
+      <label>IPv4 address<input name="ip4" id="add-ip4" placeholder="192.0.2.55" autocomplete="off" spellcheck="false"></label>
+      <label>IPv6 address<input name="ip6" id="add-ip6" placeholder="2001:db8:abcd:4::55" autocomplete="off" spellcheck="false"></label>
+      <label>Notes (optional)<input name="notes" maxlength="500"></label>
+      <button class="primary" type="submit">Generate MAC</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="toolbar">
+      <h2 style="margin:0">Entries</h2>
+      <input id="filter" type="search" placeholder="Filter by name, IP, MAC, VLAN..." autocomplete="off">
+      <span class="count" id="count"></span>
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>VLAN</th><th>IPv4</th><th>IPv6</th><th>MAC address</th><th>Notes</th><th></th></tr></thead>
+      <tbody id="entries"></tbody>
+    </table>
+    <div class="empty" id="entries-empty" hidden>No entries yet. Add a VLAN below, then generate a MAC above.</div>
+  </section>
+
+  <section>
+    <h2>VLANs</h2>
+    <p class="hint">Each VLAN needs an IPv4 subnet, an IPv6 subnet, or both. You can add or remove either later.</p>
+    <form class="row network" id="add-network-form">
+      <label>Name<input name="name" required placeholder="vlan20" maxlength="64"></label>
+      <label>IPv4 subnet<input name="cidr4" placeholder="192.0.2.0/24" autocomplete="off" spellcheck="false"></label>
+      <label>IPv6 subnet<input name="cidr6" placeholder="2001:db8:abcd:4::/64" autocomplete="off" spellcheck="false"></label>
+      <button type="submit">Add VLAN</button>
+    </form>
+    <table style="margin-top:10px">
+      <thead><tr><th>Name</th><th>IPv4 subnet</th><th>IPv6 subnet</th><th>Entries</th><th></th></tr></thead>
+      <tbody id="networks"></tbody>
+    </table>
+  </section>
+</main>
+
+<dialog id="edit-dialog">
+  <h3>Edit entry</h3>
+  <form method="dialog" id="edit-form">
+    <div class="fields">
+      <label>MAC address (fixed)<input id="edit-mac" class="mono" readonly></label>
+      <label>Name<input name="name" required maxlength="200"></label>
+      <label>VLAN<select name="network_id" id="edit-network" required></select></label>
+      <label>IPv4 address (clear to remove)<input name="ip4" autocomplete="off" spellcheck="false"></label>
+      <label>IPv6 address (clear to remove)<input name="ip6" autocomplete="off" spellcheck="false"></label>
+      <label>Notes<input name="notes" maxlength="500"></label>
+    </div>
+    <div class="buttons">
+      <button type="button" id="edit-cancel">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="network-dialog">
+  <h3>Edit VLAN</h3>
+  <form method="dialog" id="network-form">
+    <div class="fields">
+      <label>Name<input name="name" required maxlength="64"></label>
+      <label>IPv4 subnet (clear to remove)<input name="cidr4" autocomplete="off" spellcheck="false"></label>
+      <label>IPv6 subnet (clear to remove)<input name="cidr6" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <div class="buttons">
+      <button type="button" id="network-cancel">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="snippet-dialog">
+  <h3 id="snippet-title">Docker snippets</h3>
+  <div>Compose</div><pre id="snippet-compose"></pre>
+  <div style="margin-top:10px">docker run</div><pre id="snippet-run"></pre>
+  <p class="hint" id="snippet-note" style="margin-top:8px"></p>
+  <div class="buttons">
+    <button type="button" id="snippet-copy">Copy compose</button>
+    <button type="button" id="snippet-close" class="primary">Close</button>
+  </div>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+let networks = [], entries = [], editingId = null, editingNetworkId = null, toastTimer = null;
+
+function toast(msg, isErr) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = isErr ? "err" : "";
+  t.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = "none"; }, isErr ? 7000 : 2500);
+}
+
+async function api(path, method = "GET", data) {
+  const opts = { method, headers: {} };
+  if (data !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(data); }
+  const res = await fetch("/api" + path, opts);
+  if (res.status === 204) return null;
+  let json = null;
+  try { json = await res.json(); } catch (_) { /* no body */ }
+  if (!res.ok) throw new Error((json && json.error) || res.statusText || "request failed");
+  return json;
+}
+
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  for (const k of kids) e.append(k);
+  return e;
+}
+
+// A blank text box means "no address / no subnet" -> send null so the server removes it.
+const val = (input) => { const v = input.value.trim(); return v === "" ? null : v; };
+const dash = (v) => v ? el("span", { textContent: v }) : el("span", { className: "muted", textContent: "—" });
+
+async function copy(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const ta = el("textarea", { value: text });
+    document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  toast(label + " copied");
+}
+
+function fillNetworkSelect(select, selected) {
+  select.replaceChildren();
+  if (!networks.length) select.append(el("option", { value: "", textContent: "(add a VLAN first)" }));
+  for (const n of networks) {
+    const subs = [n.cidr4, n.cidr6].filter(Boolean).join(", ");
+    const o = el("option", { value: n.id, textContent: `${n.name}  (${subs})` });
+    if (selected != null && Number(selected) === n.id) o.selected = true;
+    select.append(o);
+  }
+}
+
+// In the add form, disable the address box for a family the chosen VLAN doesn't have.
+function syncAddForm() {
+  const n = networks.find((x) => x.id === Number($("#add-network").value));
+  for (const [id, cidr, label] of [["#add-ip4", n && n.cidr4, "IPv4"], ["#add-ip6", n && n.cidr6, "IPv6"]]) {
+    const input = $(id);
+    input.disabled = !cidr;
+    if (!cidr) { input.value = ""; input.placeholder = n ? `no ${label} subnet on this VLAN` : ""; }
+    else input.placeholder = "e.g. " + exampleIn(cidr);
+  }
+}
+function exampleIn(cidr) {
+  // Hint built from the subnet's base address, e.g. 192.0.2.55 or 2001:db8:abcd:4::55
+  const base = cidr.split("/")[0];
+  return base.includes(":") ? base + "55" : base.replace(/\.0$/, ".55");
+}
+
+function renderNetworks() {
+  const body = $("#networks");
+  body.replaceChildren();
+  for (const n of networks) {
+    const edit = el("button", { className: "small", textContent: "Edit", onclick: () => openNetworkEdit(n) });
+    const del = el("button", { className: "small danger", textContent: "Delete", onclick: () => deleteNetwork(n) });
+    body.append(el("tr", null,
+      el("td", { textContent: n.name }),
+      el("td", { className: "mono" }, dash(n.cidr4)),
+      el("td", { className: "mono" }, dash(n.cidr6)),
+      el("td", { className: "muted", textContent: String(n.entries) }),
+      el("td", { className: "actions" }, edit, del)));
+  }
+  if (!networks.length) body.append(el("tr", null, el("td", { colSpan: 5, className: "muted", textContent: "No VLANs yet." })));
+  fillNetworkSelect($("#add-network"), $("#add-network").value);
+  syncAddForm();
+}
+
+function renderEntries() {
+  const q = $("#filter").value.trim().toLowerCase();
+  const rows = entries.filter((e) => !q ||
+    [e.name, e.ip4 || "", e.ip6 || "", e.mac, e.network_name, e.notes].some((v) => v.toLowerCase().includes(q)));
+  const body = $("#entries");
+  body.replaceChildren();
+  for (const e of rows) {
+    const copyBtn = el("button", { className: "small", textContent: "Copy", title: "Copy MAC", onclick: () => copy(e.mac, "MAC") });
+    const snip = el("button", { className: "small", textContent: "Snippet", onclick: () => openSnippet(e) });
+    const edit = el("button", { className: "small", textContent: "Edit", onclick: () => openEdit(e) });
+    const del = el("button", { className: "small danger", textContent: "Delete", onclick: () => deleteEntry(e) });
+    body.append(el("tr", null,
+      el("td", { textContent: e.name }),
+      el("td", null, el("span", { className: "tag", textContent: e.network_name })),
+      el("td", { className: "mono" }, dash(e.ip4)),
+      el("td", { className: "mono" }, dash(e.ip6)),
+      el("td", { className: "mono" }, e.mac + " ", copyBtn),
+      el("td", { className: "muted", textContent: e.notes }),
+      el("td", { className: "actions" }, snip, edit, del)));
+  }
+  $("#count").textContent = q ? `${rows.length} of ${entries.length}` : `${entries.length} total`;
+  $("#entries-empty").hidden = entries.length > 0;
+}
+
+async function load() {
+  [networks, entries] = await Promise.all([api("/networks"), api("/entries")]);
+  renderNetworks();
+  renderEntries();
+}
+
+/* ---- add entry / VLAN ---- */
+$("#add-network").addEventListener("change", syncAddForm);
+
+$("#add-entry").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (!val(f.ip4) && !val(f.ip6)) { toast("Enter an IPv4 address, an IPv6 address, or both", true); return; }
+  try {
+    const e = await api("/entries", "POST", {
+      name: f.name.value, network_id: Number(f.network_id.value),
+      ip4: val(f.ip4), ip6: val(f.ip6), notes: f.notes.value });
+    f.name.value = ""; f.ip4.value = ""; f.ip6.value = ""; f.notes.value = "";
+    await load();
+    toast(`${e.name}: ${e.mac}`);
+    f.name.focus();
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#add-network-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (!val(f.cidr4) && !val(f.cidr6)) { toast("Enter an IPv4 subnet, an IPv6 subnet, or both", true); return; }
+  try {
+    await api("/networks", "POST", { name: f.name.value, cidr4: val(f.cidr4), cidr6: val(f.cidr6) });
+    f.name.value = ""; f.cidr4.value = ""; f.cidr6.value = "";
+    await load();
+    toast("VLAN added");
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#filter").addEventListener("input", renderEntries);
+
+/* ---- edit entry ---- */
+function openEdit(e) {
+  editingId = e.id;
+  const f = $("#edit-form");
+  $("#edit-mac").value = e.mac;
+  f.name.value = e.name; f.ip4.value = e.ip4 || ""; f.ip6.value = e.ip6 || ""; f.notes.value = e.notes;
+  fillNetworkSelect($("#edit-network"), e.network_id);
+  $("#edit-dialog").showModal();
+}
+$("#edit-cancel").onclick = () => $("#edit-dialog").close();
+$("#edit-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (!val(f.ip4) && !val(f.ip6)) { toast("An entry needs an IPv4 address, an IPv6 address, or both", true); return; }
+  try {
+    await api("/entries/" + editingId, "PUT", {
+      name: f.name.value, network_id: Number(f.network_id.value),
+      ip4: val(f.ip4), ip6: val(f.ip6), notes: f.notes.value });
+    $("#edit-dialog").close();
+    await load();
+    toast("Saved (MAC unchanged)");
+  } catch (err) { toast(err.message, true); }
+});
+
+async function deleteEntry(e) {
+  const ips = [e.ip4, e.ip6].filter(Boolean).join(", ");
+  if (!confirm(`Delete ${e.name} (${ips})?\n\nIts MAC ${e.mac} is released and may be handed out again.`)) return;
+  try { await api("/entries/" + e.id, "DELETE"); await load(); toast("Deleted"); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---- edit VLAN ---- */
+function openNetworkEdit(n) {
+  editingNetworkId = n.id;
+  const f = $("#network-form");
+  f.name.value = n.name; f.cidr4.value = n.cidr4 || ""; f.cidr6.value = n.cidr6 || "";
+  $("#network-dialog").showModal();
+}
+$("#network-cancel").onclick = () => $("#network-dialog").close();
+$("#network-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (!val(f.cidr4) && !val(f.cidr6)) { toast("A VLAN needs an IPv4 subnet, an IPv6 subnet, or both", true); return; }
+  try {
+    await api("/networks/" + editingNetworkId, "PUT", { name: f.name.value, cidr4: val(f.cidr4), cidr6: val(f.cidr6) });
+    $("#network-dialog").close();
+    await load();
+    toast("VLAN saved");
+  } catch (err) { toast(err.message, true); }
+});
+
+async function deleteNetwork(n) {
+  if (!confirm(`Delete VLAN ${n.name}?`)) return;
+  try { await api("/networks/" + n.id, "DELETE"); await load(); toast("VLAN deleted"); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---- snippets ---- */
+let composeText = "";
+function openSnippet(e) {
+  const svc = e.name.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "app";
+  const addr = [];
+  if (e.ip4) addr.push(`        ipv4_address: ${e.ip4}`);
+  if (e.ip6) addr.push(`        ipv6_address: ${e.ip6}`);
+  composeText =
+`services:
+  ${svc}:
+    mac_address: ${e.mac}
+    networks:
+      ${e.network_name}:
+${addr.join("\n")}
+
+networks:
+  ${e.network_name}:
+    external: true`;
+  let run = `docker run --network ${e.network_name}`;
+  if (e.ip4) run += ` --ip ${e.ip4}`;
+  if (e.ip6) run += ` --ip6 ${e.ip6}`;
+  run += ` --mac-address ${e.mac} ...`;
+  $("#snippet-title").textContent = `Docker snippets: ${e.name}`;
+  $("#snippet-compose").textContent = composeText;
+  $("#snippet-run").textContent = run;
+  $("#snippet-note").textContent = e.ip6
+    ? "IPv6 addresses need the Docker network to be created with IPv6 enabled (--ipv6 plus an --subnet for it)."
+    : "";
+  $("#snippet-dialog").showModal();
+}
+$("#snippet-close").onclick = () => $("#snippet-dialog").close();
+$("#snippet-copy").onclick = () => copy(composeText, "Compose snippet");
+
+load().catch((err) => toast(err.message, true));
+</script>
+</body>
+</html>
