@@ -1,0 +1,12 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+*.bak
+data
+test_app.py
+README.md
+docker-compose.yml
