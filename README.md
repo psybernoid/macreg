@@ -30,7 +30,7 @@ what the snippet generator uses as the Docker network name, so use the name of y
 ## Publishing the image with GitHub Actions
 
 `.github/workflows/docker.yml` runs the tests, then builds a multi-arch (amd64 + arm64) image and
-pushes it to GitHub Container Registry as `ghcr.io/<owner>/<repo>`.
+pushes it to GitHub Container Registry as `ghcr.io/psybernoid/macreg`.
 
 - Push to `main` -> tags `latest` and `sha-<commit>`. Push a tag like `v1.2.0` -> tags `1.2.0` and `1.2`.
 - Pull requests only build the image (to prove it builds); they never log in or push.
