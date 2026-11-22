@@ -2,7 +2,7 @@ services:
   macreg:
     build: .
     # Or use the image built by GitHub Actions instead of building locally:
-    # image: ghcr.io/YOUR-GITHUB-USER/macreg:latest
+    # image: ghcr.io/psybernoid/macreg:latest
     container_name: macreg
     restart: unless-stopped
     ports:
